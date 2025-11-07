@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from utils.embeddings import embed_text, to_pgvector
 from utils.db import get_conn, search_by_vector, close_pool
 
