@@ -32,6 +32,6 @@ def search_by_vector(conn, vec_text: str, k: int = 5):
         )
         rows = cur.fetchall()
     return [
-        {"task": t, "caption": cap, "score": float(score)}, "mp4": mp4, "hdf5": h5}
+        {"task": t, "caption": cap, "score": float(score), "mp4": mp4, "hdf5": h5}
         for (t, mp4, h5, cap, score) in rows
     ]
