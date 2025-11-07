@@ -35,3 +35,10 @@ def search_by_vector(conn, vec_text: str, k: int = 5):
         {"task": t, "caption": cap, "score": float(score), "mp4": mp4, "hdf5": h5}
         for (t, mp4, h5, cap, score) in rows
     ]
+
+def close_pool():
+    """Close all pooled connections (called on app shutdown)."""
+    try:
+        _pool.closeall()
+    except Exception:
+        pass
