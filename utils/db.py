@@ -18,7 +18,7 @@ def get_conn():
     finally:
         _pool.putconn(conn)
 
-def search_by_vector(conn, vec_text: str, k: int = 5) -> list[dict[str, object]]
+def search_by_vector(conn, vec_text: str, k: int = 5):
     """Query pgvector index and return rows as dicts."""
     with conn.cursor() as cur:
         cur.execute(
