@@ -3,6 +3,15 @@ from utils.embeddings import embed_text, to_pgvector
 from utils.db import get_conn, search_by_vector, close_pool
 
 app = FastAPI(title="EgoDex Search API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://tryasimov.ai",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_methods=["*"],   
+    allow_headers=["*"],
 
 @app.get("/health")
 def health():
