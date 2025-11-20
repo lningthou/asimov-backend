@@ -1,35 +1,50 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Literal
 from utils.embeddings import embed_text, to_pgvector
-from utils.db import get_conn, search_by_vector, close_pool
+from utils.db import get_conn, search_videos, close_pool
 
 app = FastAPI(title="EgoDex Search API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://tryasimov.ai",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
     ],
     allow_methods=["*"],   
     allow_headers=["*"],
     )
+
 @app.get("/health")
 def health():
     return {"ok": True}
 
 @app.get("/search")
-def search(q: str, k: int = 5):
+def search(
+    q: str,
+    k: int = Query(default=5, ge=1, le=100),
+    mode: Literal["semantic", "keyword", "hybrid"] = "semantic",
+):
+    """
+    Search EgoDex videos.
+    
+    Args:
+        q: Search query text
+        k: Number of results to return (1-100)
+        mode: Search mode - "semantic" (embedding), "keyword" (text), or "hybrid" (both)
+    """
     text = q.strip()
     if not text:
         raise HTTPException(status_code=400, detail="q must be non-empty")
 
-    emb = embed_text(text)
-    vtxt = to_pgvector(emb)
+    # Generate embedding for semantic or hybrid search
+    emb_text = None
+    if mode in ("semantic", "hybrid"):
+        emb = embed_text(text)
+        emb_text = to_pgvector(emb)
 
     with get_conn() as conn:
-        results = search_by_vector(conn, vtxt, k)
-
+        results = search_videos(conn, query=text, k=k, mode=mode, embedding=emb_text)
+    
     return results
 
 @app.on_event("shutdown")
