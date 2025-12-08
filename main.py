@@ -21,8 +21,8 @@ app.add_middleware(
     )
 
 # S3 configuration
-S3_BUCKET = os.environ.get("S3_BUCKET", "asimov-rrd-files")
-S3_PREFIX = os.environ.get("S3_PREFIX", "rrd/")  # prefix/folder in bucket
+S3_BUCKET = os.environ.get("S3_BUCKET", "rrd-files-skild")
+S3_PREFIX = os.environ.get("S3_PREFIX", "")  # no prefix - files stored at root
 
 # Initialize S3 client
 s3_client = boto3.client("s3")
