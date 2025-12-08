@@ -1,6 +1,9 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from typing import Literal
+from pathlib import Path
+import os
 from utils.embeddings import embed_text, to_pgvector
 from utils.db import get_conn, search_videos, close_pool
 
@@ -9,10 +12,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://tryasimov.ai",
+        "http://localhost:5173",
     ],
-    allow_methods=["*"],   
+    allow_methods=["*"],
     allow_headers=["*"],
     )
+
+# Directory where .rrd files are stored on the EC2
+RRD_DIR = Path(os.environ.get("RRD_DIR", "/data/rrd"))
 
 @app.get("/health")
 def health():
@@ -46,6 +53,39 @@ def search(
         results = search_videos(conn, query=text, k=k, mode=mode, embedding=emb_text)
     
     return results
+
+@app.get("/rrd/{filename}")
+def stream_rrd(filename: str):
+    """
+    Stream an .rrd file for Rerun viewer.
+
+    Args:
+        filename: Name of the .rrd file (e.g., "test_output_minimal.rrd")
+    """
+    # Security: only allow .rrd files, no path traversal
+    if not filename.endswith(".rrd") or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    filepath = RRD_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    def iter_file():
+        # Stream in 64KB chunks
+        chunk_size = 64 * 1024
+        with open(filepath, "rb") as f:
+            while chunk := f.read(chunk_size):
+                yield chunk
+
+    return StreamingResponse(
+        iter_file(),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f"inline; filename={filename}",
+            "Content-Length": str(filepath.stat().st_size),
+        }
+    )
+
 
 @app.on_event("shutdown")
 def _shutdown():
