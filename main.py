@@ -4,6 +4,8 @@ from fastapi.responses import StreamingResponse
 from typing import Literal
 from pathlib import Path
 import os
+import boto3
+from botocore.exceptions import ClientError
 from utils.embeddings import embed_text, to_pgvector
 from utils.db import get_conn, search_videos, close_pool
 
@@ -18,8 +20,12 @@ app.add_middleware(
     allow_headers=["*"],
     )
 
-# Directory where .rrd files are stored on the EC2
-RRD_DIR = Path(os.environ.get("RRD_DIR", "/data/rrd"))
+# S3 configuration
+S3_BUCKET = os.environ.get("S3_BUCKET", "asimov-rrd-files")
+S3_PREFIX = os.environ.get("S3_PREFIX", "rrd/")  # prefix/folder in bucket
+
+# Initialize S3 client
+s3_client = boto3.client("s3")
 
 @app.get("/health")
 def health():
@@ -57,32 +63,39 @@ def search(
 @app.get("/rrd/{filename}")
 def stream_rrd(filename: str):
     """
-    Stream an .rrd file for Rerun viewer.
+    Stream an .rrd file from S3 for Rerun viewer.
 
     Args:
-        filename: Name of the .rrd file (e.g., "test_output_minimal.rrd")
+        filename: Name of the .rrd file (e.g., "episode_001.rrd")
     """
     # Security: only allow .rrd files, no path traversal
     if not filename.endswith(".rrd") or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    filepath = RRD_DIR / filename
-    if not filepath.exists():
-        raise HTTPException(status_code=404, detail="Recording not found")
+    s3_key = f"{S3_PREFIX}{filename}"
 
-    def iter_file():
-        # Stream in 64KB chunks
+    try:
+        # Get object metadata for Content-Length
+        head = s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+        content_length = head["ContentLength"]
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "404":
+            raise HTTPException(status_code=404, detail=f"Recording not found: {filename}")
+        raise HTTPException(status_code=500, detail=f"S3 error: {str(e)}")
+
+    def iter_s3_object():
+        # Stream from S3 in 64KB chunks
         chunk_size = 64 * 1024
-        with open(filepath, "rb") as f:
-            while chunk := f.read(chunk_size):
-                yield chunk
+        response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        for chunk in response["Body"].iter_chunks(chunk_size=chunk_size):
+            yield chunk
 
     return StreamingResponse(
-        iter_file(),
+        iter_s3_object(),
         media_type="application/octet-stream",
         headers={
             "Content-Disposition": f"inline; filename={filename}",
-            "Content-Length": str(filepath.stat().st_size),
+            "Content-Length": str(content_length),
         }
     )
 
