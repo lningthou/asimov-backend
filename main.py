@@ -1,14 +1,19 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from typing import Literal
-from pathlib import Path
 import os
-import httpx
+import secrets
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (for DATABASE_URL)
 load_dotenv()
+
+# Auth configuration
+EXPLORE_PASSWORD = os.environ.get("EXPLORE_PASSWORD", "skild")
+AUTH_COOKIE_NAME = "explore_auth"
+# Generate a random token for this server instance (or use env var for persistence)
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN", secrets.token_urlsafe(32))
 
 # Try to import DB utils (optional - only needed for search)
 try:
@@ -28,16 +33,45 @@ app.add_middleware(
     ],
     allow_methods=["*"],
     allow_headers=["*"],
-    )
+    allow_credentials=True,  # Required for cookies
+)
 
-# S3 public URL configuration
-S3_BUCKET = "rrd-files-skild"
-S3_REGION = "us-east-1"
-S3_BASE_URL = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com"
+
+# Auth models
+class AuthRequest(BaseModel):
+    password: str
+
 
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+@app.post("/api/auth")
+def authenticate(auth: AuthRequest, response: Response):
+    """Verify password and set auth cookie."""
+    if auth.password == EXPLORE_PASSWORD:
+        response.set_cookie(
+            key=AUTH_COOKIE_NAME,
+            value=AUTH_TOKEN,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax",
+            max_age=60 * 60 * 24 * 7,  # 7 days
+        )
+        return {"authenticated": True}
+    else:
+        raise HTTPException(status_code=401, detail="Invalid password")
+
+
+@app.get("/api/auth/check")
+def check_auth(request: Request):
+    """Check if user has valid auth cookie."""
+    token = request.cookies.get(AUTH_COOKIE_NAME)
+    if token == AUTH_TOKEN:
+        return {"authenticated": True}
+    return {"authenticated": False}
+
 
 @app.get("/search")
 def search(
@@ -70,34 +104,6 @@ def search(
         results = search_videos(conn, query=text, k=k, mode=mode, embedding=emb_text)
 
     return results
-
-@app.get("/rrd/{filename}")
-async def get_rrd(filename: str):
-    """
-    Stream an .rrd file from S3.
-
-    Args:
-        filename: Name of the .rrd file (e.g., "episode_001.rrd")
-    """
-    # Security: only allow .rrd files, no path traversal
-    if not filename.endswith(".rrd") or "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-
-    s3_url = f"{S3_BASE_URL}/{filename}"
-
-    async def stream_from_s3():
-        async with httpx.AsyncClient() as client:
-            async with client.stream("GET", s3_url) as response:
-                if response.status_code == 404:
-                    raise HTTPException(status_code=404, detail=f"Recording not found: {filename}")
-                async for chunk in response.aiter_bytes(chunk_size=65536):
-                    yield chunk
-
-    return StreamingResponse(
-        stream_from_s3(),
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f"inline; filename={filename}"}
-    )
 
 
 @app.on_event("shutdown")
