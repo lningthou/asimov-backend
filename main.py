@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Literal
@@ -10,7 +10,6 @@ load_dotenv()
 
 # Auth configuration
 EXPLORE_PASSWORD = os.environ.get("EXPLORE_PASSWORD", "skild")
-AUTH_COOKIE_NAME = "explore_auth"
 AUTH_TOKEN = "xK9mP2vL8nQ4wR7jT1yB5cF3hD6gA0sE"
 
 # Try to import DB utils (optional - only needed for search)
@@ -46,28 +45,22 @@ def health():
 
 
 @app.post("/api/auth")
-def authenticate(auth: AuthRequest, response: Response):
-    """Verify password and set auth cookie."""
+def authenticate(auth: AuthRequest):
+    """Verify password and return auth token."""
     if auth.password == EXPLORE_PASSWORD:
-        response.set_cookie(
-            key=AUTH_COOKIE_NAME,
-            value=AUTH_TOKEN,
-            httponly=True,
-            secure=True,  # Required for cross-site cookies
-            samesite="none",  # Required for cross-origin requests
-            max_age=60 * 60 * 24 * 7,  # 7 days
-        )
-        return {"authenticated": True}
+        return {"authenticated": True, "token": AUTH_TOKEN}
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
 
 
-@app.get("/api/auth/check")
-def check_auth(request: Request):
-    """Check if user has valid auth cookie."""
-    token = request.cookies.get(AUTH_COOKIE_NAME)
-    if token == AUTH_TOKEN:
-        return {"authenticated": True}
+@app.post("/api/auth/verify")
+def verify_token(request: Request):
+    """Verify if token is valid."""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        if token == AUTH_TOKEN:
+            return {"authenticated": True}
     return {"authenticated": False}
 
 
