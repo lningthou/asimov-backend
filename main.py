@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Auth configuration
-EXPLORE_PASSWORD = os.environ.get("EXPLORE_PASSWORD", "skild")
+EXPLORE_PASSWORDS = ["skild", "pi-samples"]
 AUTH_TOKEN = "xK9mP2vL8nQ4wR7jT1yB5cF3hD6gA0sE"
 
 # Try to import DB utils (optional - only needed for search)
@@ -47,7 +47,7 @@ def health():
 @app.post("/api/auth")
 def authenticate(auth: AuthRequest):
     """Verify password and return auth token."""
-    if auth.password == EXPLORE_PASSWORD:
+    if auth.password in EXPLORE_PASSWORDS:
         return {"authenticated": True, "token": AUTH_TOKEN}
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
