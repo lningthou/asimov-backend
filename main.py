@@ -55,8 +55,8 @@ def authenticate(auth: AuthRequest, response: Response):
             key=AUTH_COOKIE_NAME,
             value=AUTH_TOKEN,
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax",
+            secure=True,  # Required for cross-site cookies
+            samesite="none",  # Required for cross-origin requests
             max_age=60 * 60 * 24 * 7,  # 7 days
         )
         return {"authenticated": True}
