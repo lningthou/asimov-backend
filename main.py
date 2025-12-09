@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Literal
 import os
-import secrets
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (for DATABASE_URL)
@@ -12,8 +11,7 @@ load_dotenv()
 # Auth configuration
 EXPLORE_PASSWORD = os.environ.get("EXPLORE_PASSWORD", "skild")
 AUTH_COOKIE_NAME = "explore_auth"
-# Generate a random token for this server instance (or use env var for persistence)
-AUTH_TOKEN = os.environ.get("AUTH_TOKEN", secrets.token_urlsafe(32))
+AUTH_TOKEN = "xK9mP2vL8nQ4wR7jT1yB5cF3hD6gA0sE"
 
 # Try to import DB utils (optional - only needed for search)
 try:
