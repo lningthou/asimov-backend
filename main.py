@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Auth configuration
-EXPLORE_PASSWORDS = ["skild", "pi-samples", "persona", "figure", "robot-samples", "openai-samples", "figure-samples", "maven-samples"]
+EXPLORE_PASSWORDS = ["skild", "pi-samples", "persona", "figure", "robot-samples", "openai-samples","mimic-samples", "figure-samples", "maven-samples", "bot-asimov"]
 AUTH_TOKEN = "xK9mP2vL8nQ4wR7jT1yB5cF3hD6gA0sE"
 
 # Try to import DB utils (optional - only needed for search)
